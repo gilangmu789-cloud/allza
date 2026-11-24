@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini Soccer 3v3: Championship Arena</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #064e3b;
+            font-family: 'Inter', sans-serif;
+            color: white;
+        }
+        .font-sport {
+            font-family: 'Russo One', sans-serif;
+            letter-spacing: 1px;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background: #15803d;
+        }
+        /* Tombol Aksi Sepak Bola */
+        .shoot-btn {
+            background: radial-gradient(circle at 35% 35%, #ef4444, #991b1b);
+            border: 3px solid #fecaca;
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.55);
+            transition: transform 0.08s ease;
+        }
+        .shoot-btn:active {
+            transform: scale(0.9);
+        }
+        .pass-btn {
+            background: radial-gradient(circle at 35% 35%, #3b82f6, #1d4ed8);
+            border: 2px solid #bfdbfe;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.5);
+            transition: transform 0.08s ease;
+        }
+        .pass-btn:active {
+            transform: scale(0.92);
+        }
+        .sprint-btn {
+            background: radial-gradient(circle at 35% 35%, #f59e0b, #b45309);
+            border: 2px solid #fde68a;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.5);
+            transition: transform 0.08s ease;
+        }
+        .sprint-btn:active {
+            transform: scale(0.92);
+        }
+        /* Virtual Joystick */
+        #joystick-zone {
+            position: absolute;
+            bottom: 22px;
+            left: 22px;
+            width: 145px;
+            height: 145px;
+            z-index: 20;
+        }
+        #joystick-base {
+            position: absolute;
+            width: 116px;
+            height: 116px;
+            left: 14px;
+            top: 14px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.14);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+        }
+        #joystick-stick {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            left: 34px;
+            top: 34px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #38bdf8, #0284c7);
+            border: 2px solid #e0f2fe;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Canvas Lapangan Bola -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD Scoreboard Atas -->
+    <div id="hud-top" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <div class="flex items-center gap-3 sm:gap-5 bg-slate-950/90 border-2 border-emerald-400/60 px-5 py-2 rounded-2xl shadow-2xl backdrop-blur-md">
+            <div class="flex items-center gap-2">
+                <span class="w-3.5 h-3.5 rounded-full bg-blue-500 inline-block"></span>
+                <span class="font-sport text-sm sm:text-base text-blue-400" id="team-blue-name">GARUDA</span>
+                <span class="font-sport text-2xl sm:text-3xl text-white ml-1" id="score-blue">0</span>
+            </div>
+
+            <div class="bg-slate-800 px-3 py-1 rounded-lg border border-slate-600 text-center">
+                <div class="text-[9px] uppercase tracking-widest text-emerald-400 font-bold">WAKTU</div>
+                <div class="font-mono text-sm sm:text-base font-extrabold text-white" id="match-timer">02:00</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <span class="font-sport text-2xl sm:text-3xl text-white mr-1" id="score-red">0</span>
+                <span class="font-sport text-sm sm:text-base text-red-400">TITANS</span>
+                <span class="w-3.5 h-3.5 rounded-full bg-red-500 inline-block"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banner GOAL! -->
+    <div id="goal-banner" class="hidden fixed inset-0 flex items-center justify-center pointer-events-none z-20">
+        <div class="bg-gradient-to-r from-transparent via-amber-500/95 to-transparent w-full py-5 border-y-4 border-white text-center shadow-2xl">
+            <h2 id="goal-banner-text" class="font-sport text-5xl sm:text-7xl text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+                GOOOAAAL!!
+            </h2>
+            <p id="goal-scorer-text" class="text-sm sm:text-lg font-bold text-slate-950 mt-1">Dicetak oleh Striker!</p>
+        </div>
+    </div>
+
+    <!-- Kontrol Sentuh (Joystick Kiri & Tombol Shoot/Pass/Sprint Kanan) -->
+    <div id="controls-layer" class="hidden">
+        <!-- Virtual Joystick -->
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+
+        <!-- Bar Power Tendangan (Muncul saat tombol Shoot ditahan) -->
+        <div id="power-bar-container" class="hidden fixed bottom-36 right-8 w-36 bg-slate-950/90 border border-white/40 p-1.5 rounded-full z-20">
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div id="power-bar-fill" class="h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <!-- Tombol Aksi Kanan Bawah -->
+        <div class="fixed bottom-5 right-5 w-48 h-48 z-20">
+            <!-- Tombol Sprint / Turbo -->
+            <button onmousedown="activateSprint()" ontouchstart="activateSprint(event)" class="sprint-btn absolute top-2 right-3 w-14 h-14 rounded-full flex flex-col items-center justify-center">
+                <span class="text-lg">⚡</span>
+                <span class="text-[9px] font-extrabold uppercase">Sprint</span>
+            </button>
+
+            <!-- Tombol Umpan (Pass) / Ganti Pemain -->
+            <button onclick="handlePassOrSwitch()" class="pass-btn absolute bottom-3 left-2 w-15 h-15 p-2 rounded-full flex flex-col items-center justify-center">
+                <span class="text-lg">👟</span>
+                <span class="text-[9px] font-extrabold uppercase" id="label-pass">Umpan</span>
+            </button>
+
+            <!-- Tombol Tendang (Shoot) / Tekel (Tackle) -->
+            <button onmousedown="startChargeShot()" onmouseup="releaseShot()" ontouchstart="startChargeShot(event)" ontouchend="releaseShot(event)" class="shoot-btn absolute bottom-1 right-1 w-21 h-21 p-4 rounded-full flex flex-col items-center justify-center">
+                <span class="text-2xl">⚽</span>
+                <span class="text-[10px] font-extrabold uppercase tracking-wider" id="label-shoot">TENDANG</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Layar Menu Utama -->
+    <div id="start-screen" class="fixed inset-0 bg-gradient-to-b from-emerald-950 via-green-900 to-slate-950 flex flex-col items-center justify-center p-4 z-30">
+        <div class="text-center mb-6">
+            <div class="text-xs uppercase tracking-[0.35em] text-emerald-300 font-bold mb-1">3v3 Arcade Football</div>
+            <h1 class="font-sport text-4xl sm:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-white via-emerald-200 to-yellow-300 drop-shadow-lg">
+                MINI SOCCER 3V3
+            </h1>
+            <p class="text-emerald-100/80 text-xs sm:text-sm mt-2 max-w-md mx-auto">
+                Dribble melewati lawan, lakukan umpan satu-dua, dan tahan tombol <b>TENDANG</b> untuk melepaskan tendangan keras ke gawang!
+            </p>
+        </div>
+
+        <!-- Pilihan Formasi / Gaya Bermain -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl w-full mb-6">
+            <div onclick="selectMode('balanced')" id="mode-balanced" class="cursor-pointer bg-slate-900/85 border-2 border-yellow-400 rounded-2xl p-3.5 text-center transition">
+                <div class="text-3xl mb-1">⚖️</div>
+                <h3 class="font-sport text-base text-yellow-300">SEIMBANG</h3>
+                <p class="text-xs text-slate-300">Kecepatan dan kekuatan tendangan yang ideal untuk semua posisi.</p>
+            </div>
+            <div onclick="selectMode('speed')" id="mode-speed" class="cursor-pointer bg-slate-900/85 border-2 border-slate-700 rounded-2xl p-3.5 text-center transition">
+                <div class="text-3xl mb-1">⚡</div>
+                <h3 class="font-sport text-base text-yellow-300">TIKI-TAKA</h3>
+                <p class="text-xs text-slate-300">Pemain lari +15% lebih lincah untuk menggiring bola cepat.</p>
+            </div>
+            <div onclick="selectMode('power')" id="mode-power" class="cursor-pointer bg-slate-900/85 border-2 border-slate-700 rounded-2xl p-3.5 text-center transition">
+                <div class="text-3xl mb-1">🔥</div>
+                <h3 class="font-sport text-base text-yellow-300">POWER SHOT</h3>
+                <p class="text-xs text-slate-300">Kekuatan tendangan +20% lebih keras menembus kiper lawan.</p>
+            </div>
+        </div>
+
+        <button onclick="startMatch()" class="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 hover:brightness-110 text-slate-950 font-sport text-xl px-12 py-3.5 rounded-full shadow-[0_0_25px_rgba(250,204,21,0.6)] active:scale-95 transition">
+            KICK OFF!
+        </button>
+        <div class="text-[11px] text-emerald-200/80 mt-3 text-center">
+            Kontrol PC: <b>WASD / Panah</b> Gerak | <b>Spasi (Tahan)</b> Tendang | <b>K / X</b> Umpan | <b>Shift</b> Sprint
+        </div>
+    </div>
+
+    <!-- Layar Full Time (Hasil Pertandingan) -->
+    <div id="end-screen" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 z-40">
+        <div class="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-1">FULL TIME</div>
+        <h1 id="end-title" class="font-sport text-5xl sm:text-6xl text-yellow-400 mb-2">
+            KEMENANGAN!
+        </h1>
+        <p id="end-subtitle" class="text-slate-300 mb-6 text-center text-sm sm:text-base">Pertandingan yang luar biasa!</p>
+        <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl p-5 mb-6 w-full max-w-xs text-center">
+            <div class="flex justify-around items-center">
+                <div>
+                    <div class="text-xs text-blue-400 font-bold">GARUDA</div>
+                    <div id="end-blue-score" class="font-sport text-4xl text-white">0</div>
+                </div>
+                <div class="font-sport text-xl text-slate-500">-</div>
+                <div>
+                    <div class="text-xs text-red-400 font-bold">TITANS</div>
+                    <div id="end-red-score" class="font-sport text-4xl text-white">0</div>
+                </div>
+            </div>
+        </div>
+        <button onclick="location.reload()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sport text-lg px-9 py-3 rounded-full shadow-lg active:scale-95">
+            MAIN LAGI
+        </button>
+    </div>
+
+<script>
+/**
+ * MINI SOCCER 3V3 ENGINE
+ * Fitur: Lapangan Hijau lengkap dengan garis putih, gawang kiri & kanan,
+ * fisika bola realistis (pantulan tiang, gesekan rumput, efek putaran),
+ * 3v3 AI (Striker, Gelandang, Kiper), Charging Power Shot, Pass, & Tackle.
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Dimensi Lapangan
+const FIELD_W = 1800;
+const FIELD_H = 1050;
+const PADDING = 110;
+const GOAL_W = 65;
+const GOAL_H = 240;
+const GOAL_TOP = (FIELD_H - GOAL_H) / 2;
+const GOAL_BOTTOM = (FIELD_H + GOAL_H) / 2;
+
+let selectedMode = 'balanced';
+let gameRunning = false;
+let matchTime = 120; // 2 Menit pertandingan
+let lastTime = 0;
+let blueScore = 0;
+let redScore = 0;
+let goalPause = false;
+
+// Kamera & Input
+const camera = { x: 0, y: 0 };
+const keys = {};
+const joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0 };
+
+// Power Shot Charging
+let chargingShot = false;
+let shotPower = 0;
+
+// Entitas
+let players = [];
+let controlledPlayer = null;
+let particles = [];
+let floatingTexts = [];
+
+const ball = {
+    x: FIELD_W / 2,
+    y: FIELD_H / 2,
+    vx: 0,
+    vy: 0,
+    radius: 14,
+    owner: null,
+    lastTouch: null,
+    rotation: 0
+};
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function selectMode(mode) {
+    selectedMode = mode;
+    ['balanced', 'speed', 'power'].forEach(m => {
+        const el = document.getElementById('mode-' + m);
+        if (m === mode) {
+            el.classList.remove('border-slate-700');
+            el.classList.add('border-yellow-400', 'bg-slate-800');
+        } else {
+            el.classList.add('border-slate-700');
+            el.classList.remove('border-yellow-400', 'bg-slate-800');
+        }
+    });
+}
+
+function dist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function spawnParticles(x, y, color, count = 10, speed = 160) {
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = Math.random() * speed;
+        particles.push({
+            x, y,
+            vx: Math.cos(a) * s,
+            vy: Math.sin(a) * s,
+            color,
+            radius: 3 + Math.random() * 3,
+            life: 0.35 + Math.random() * 0.25,
+            maxLife: 0.6
+        });
+    }
+}
+
+function addFloatingText(x, y, text, color = '#ffffff') {
+    floatingTexts.push({ x, y, text, color, life: 0.85, maxLife: 0.85 });
+}
+
+// Kelas Pemain Sepak Bola
+class Footballer {
+    constructor(name, number, team, role, homeX, homeY) {
+        this.name = name;
+        this.number = number;
+        this.team = team; // 'blue' (kiri) atau 'red' (kanan)
+        this.role = role; // 'gk', 'mid', 'fwd'
+        this.homeX = homeX;
+        this.homeY = homeY;
+        this.x = homeX;
+        this.y = homeY;
+        this.radius = 21;
+        this.angle = team === 'blue' ? 0 : Math.PI;
+
+        const speedBonus = (team === 'blue' && selectedMode === 'speed') ? 1.15 : 1.0;
+        const shotBonus = (team === 'blue' && selectedMode === 'power') ? 1.2 : 1.0;
+
+        this.baseSpeed = (role === 'gk' ? 195 : 235) * speedBonus;
+        this.shotMult = shotBonus;
+        this.sprintTimer = 0;
+        this.stunTimer = 0;
+        this.kickCooldown = 0;
+    }
+
+    update(dt) {
+        if (this.sprintTimer > 0) this.sprintTimer -= dt;
+        if (this.stunTimer > 0) {
+            this.stunTimer -= dt;
+            return;
+        }
+        if (this.kickCooldown > 0) this.kickCooldown -= dt;
+
+        const isControlled = (this === controlledPlayer);
+        const speed = this.baseSpeed * (this.sprintTimer > 0 ? 1.4 : 1.0);
+
+        if (isControlled) {
+            this.updateControlled(dt, speed);
+        } else {
+            this.updateAI(dt, speed);
+        }
+
+        // Batas Pergerakan di dalam Area Stadion
+        this.x = Math.max(PADDING - 25, Math.min(FIELD_W - PADDING + 25, this.x));
+        this.y = Math.max(PADDING - 15, Math.min(FIELD_H - PADDING + 15, this.y));
+
+        // Cek Penguasaan Bola (Dribble)
+        if (!ball.owner && this.kickCooldown <= 0 && dist(this, ball) < this.radius + ball.radius + 4) {
+            ball.owner = this;
+            ball.lastTouch = this;
+            if (this.team === 'blue' && this.role !== 'gk') {
+                controlledPlayer = this;
+            }
+        }
+
+        // Jika pemain sedang menggiring bola
+        if (ball.owner === this) {
+            const dribbleDist = this.radius + ball.radius + 3;
+            ball.x = this.x + Math.cos(this.angle) * dribbleDist;
+            ball.y = this.y + Math.sin(this.angle) * dribbleDist;
+            ball.vx = 0;
+            ball.vy = 0;
+            ball.rotation += 8 * dt;
+        }
+    }
+
+    updateControlled(dt, speed) {
+        let vx = 0;
+        let vy = 0;
+
+        if (keys['KeyW'] || keys['ArrowUp']) vy -= 1;
+        if (keys['KeyS'] || keys['ArrowDown']) vy += 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) vx -= 1;
+        if (keys['KeyD'] || keys['ArrowRight']) vx += 1;
+
+        if (joystick.active) {
+            vx = joystick.dx;
+            vy = joystick.dy;
+        }
+
+        const mag = Math.hypot(vx, vy);
+        if (mag > 0.05) {
+            const nx = vx / (mag > 1 ? mag : 1);
+            const ny = vy / (mag > 1 ? mag : 1);
+            this.x += nx * speed * dt;
+            this.y += ny * speed * dt;
+            this.angle = Math.atan2(ny, nx);
+        }
+    }
+
+    updateAI(dt, speed) {
+        const ownGoalX = this.team === 'blue' ? PADDING : FIELD_W - PADDING;
+        const enemyGoalX = this.team === 'blue' ? FIELD_W - PADDING : PADDING;
+
+        // Perilaku Kiper (GK)
+        if (this.role === 'gk') {
+            const targetX = this.team === 'blue' ? PADDING + 25 : FIELD_W - PADDING - 25;
+            const targetY = Math.max(GOAL_TOP + 20, Math.min(GOAL_BOTTOM - 20, ball.y));
+            this.moveTowards(targetX, targetY, speed, dt);
+            this.angle = this.team === 'blue' ? 0 : Math.PI;
+
+            // Jika kiper menangkap bola, langsung tendang jauh ke depan
+            if (ball.owner === this) {
+                const mate = players.find(p => p.team === this.team && p !== this);
+                if (mate) {
+                    const a = Math.atan2(mate.y - this.y, mate.x - this.x);
+                    kickBall(this, a, 720);
+                } else {
+                    kickBall(this, this.angle, 750);
+                }
+            }
+            return;
+        }
+
+        // Perilaku Pemain Lapangan (MID & FWD)
+        if (ball.owner === this) {
+            // Bawa bola menuju gawang lawan
+            const goalY = FIELD_H / 2 + (Math.sin(performance.now() / 500) * 60);
+            this.moveTowards(enemyGoalX, goalY, speed, dt);
+
+            // Tembak jika sudah dekat gawang lawan
+            if (Math.abs(this.x - enemyGoalX) < 360) {
+                const shootAngle = Math.atan2((FIELD_H / 2 + (Math.random()*120 - 60)) - this.y, enemyGoalX - this.x);
+                kickBall(this, shootAngle, 860 * this.shotMult);
+            }
+        } else if (ball.owner && ball.owner.team === this.team) {
+            // Dukung teman yang membawa bola (cari ruang terbuka)
+            const supportX = ball.owner.x + (this.team === 'blue' ? 140 : -140);
+            const supportY = this.homeY;
+            this.moveTowards(supportX, supportY, speed * 0.85, dt);
+        } else {
+            // Kejar bola jika paling dekat di tim, atau jaga posisi
+            const teammates = players.filter(p => p.team === this.team && p.role !== 'gk');
+            const closest = teammates.reduce((a, b) => dist(a, ball) < dist(b, ball) ? a : b);
+
+            if (closest === this) {
+                this.moveTowards(ball.x, ball.y, speed, dt);
+                // Tekel lawan jika sangat dekat
+                if (ball.owner && ball.owner.team !== this.team && dist(this, ball.owner) < 46 && Math.random() < 0.08) {
+                    performTackle(this);
+                }
+            } else {
+                const defX = (this.homeX + ball.x) / 2;
+                this.moveTowards(defX, this.homeY, speed * 0.8, dt);
+            }
+        }
+    }
+
+    moveTowards(tx, ty, speed, dt) {
+        const dx = tx - this.x;
+        const dy = ty - this.y;
+        const d = Math.hypot(dx, dy);
+        if (d > 5) {
+            this.x += (dx / d) * speed * dt;
+            this.y += (dy / d) * speed * dt;
+            this.angle = Math.atan2(dy, dx);
+        }
+    }
+}
+
+// Tendang Bola
+function kickBall(kicker, angle, power) {
+    ball.owner = null;
+    ball.lastTouch = kicker;
+    kicker.kickCooldown = 0.28;
+    ball.vx = Math.cos(angle) * power;
+    ball.vy = Math.sin(angle) * power;
+    spawnParticles(ball.x, ball.y, '#ffffff', 8, 120);
+}
+
+// Tekel Lawan
+function performTackle(tackler) {
+    tackler.sprintTimer = 0.35;
+    spawnParticles(tackler.x, tackler.y, '#facc15', 10, 140);
+    if (ball.owner && ball.owner.team !== tackler.team && dist(tackler, ball.owner) < 55) {
+        const victim = ball.owner;
+        victim.stunTimer = 0.75;
+        ball.owner = tackler;
+        ball.lastTouch = tackler;
+        addFloatingText(tackler.x, tackler.y - 28, 'TEKEL BERSIH!', '#facc15');
+    }
+}
+
+// Kontrol Aksi Player
+function startChargeShot(e) {
+    if (e) e.preventDefault();
+    if (!gameRunning || !controlledPlayer) return;
+
+    if (ball.owner === controlledPlayer) {
+        chargingShot = true;
+        shotPower = 0.35;
+        document.getElementById('power-bar-container').classList.remove('hidden');
+    } else {
+        // Jika tidak pegang bola, lakukan Tekel
+        performTackle(controlledPlayer);
+    }
+}
+
+function releaseShot(e) {
+    if (e) e.preventDefault();
+    if (!chargingShot || !controlledPlayer) return;
+    chargingShot = false;
+    document.getElementById('power-bar-container').classList.add('hidden');
+
+    if (ball.owner === controlledPlayer) {
+        const finalPower = (550 + shotPower * 580) * controlledPlayer.shotMult;
+        // Sedikit bantuan arah ke gawang kanan jika pemain menghadap ke kanan
+        let shootAngle = controlledPlayer.angle;
+        if (Math.cos(shootAngle) > 0.35) {
+            const goalCenterAngle = Math.atan2(FIELD_H / 2 - controlledPlayer.y, (FIELD_W - PADDING) - controlledPlayer.x);
+            shootAngle = shootAngle * 0.65 + goalCenterAngle * 0.35;
+        }
+        kickBall(controlledPlayer, shootAngle, finalPower);
+        if (shotPower > 0.8) {
+            addFloatingText(controlledPlayer.x, controlledPlayer.y - 30, 'POWER SHOT!', '#ef4444');
+        }
+    }
+    shotPower = 0;
+}
+
+function handlePassOrSwitch() {
+    if (!gameRunning || !controlledPlayer) return;
+
+    if (ball.owner === controlledPlayer) {
+        // Umpan ke teman tim biru terdekat di depan atau sekitar
+        const mates = players.filter(p => p.team === 'blue' && p !== controlledPlayer);
+        if (mates.length > 0) {
+            mates.sort((a, b) => dist(controlledPlayer, a) - dist(controlledPlayer, b));
+            const targetMate = mates[0];
+            const passAngle = Math.atan2(targetMate.y - controlledPlayer.y, targetMate.x - controlledPlayer.x);
+            kickBall(controlledPlayer, passAngle, 650);
+            controlledPlayer = targetMate;
+            addFloatingText(targetMate.x, targetMate.y - 28, 'UMPAN!', '#38bdf8');
+        }
+    } else {
+        // Ganti kontrol ke pemain tim biru terdekat dengan bola
+        const fieldPlayers = players.filter(p => p.team === 'blue' && p.role !== 'gk');
+        fieldPlayers.sort((a, b) => dist(a, ball) - dist(b, ball));
+        if (fieldPlayers[0]) {
+            controlledPlayer = fieldPlayers[0];
+            addFloatingText(controlledPlayer.x, controlledPlayer.y - 28, 'GANTI PEMAIN', '#38bdf8');
+        }
+    }
+}
+
+function activateSprint(e) {
+    if (e) e.preventDefault();
+    if (!gameRunning || !controlledPlayer) return;
+    controlledPlayer.sprintTimer = 1.6;
+    spawnParticles(controlledPlayer.x, controlledPlayer.y, '#fbbf24', 8, 90);
+}
+
+// Reset Posisi setelah Gol atau Kick-Off
+function resetPositions(kickOffTeam = 'blue') {
+    ball.x = FIELD_W / 2;
+    ball.y = FIELD_H / 2;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.owner = null;
+
+    players.forEach(p => {
+        p.x = p.homeX;
+        p.y = p.homeY;
+        p.stunTimer = 0;
+        p.sprintTimer = 0;
+        p.angle = p.team === 'blue' ? 0 : Math.PI;
+    });
+
+    const blueFwd = players.find(p => p.team === 'blue' && p.role === 'fwd');
+    const redFwd = players.find(p => p.team === 'red' && p.role === 'fwd');
+
+    if (kickOffTeam === 'blue' && blueFwd) {
+        blueFwd.x = FIELD_W / 2 - 35;
+        blueFwd.y = FIELD_H / 2;
+        controlledPlayer = blueFwd;
+    } else if (redFwd) {
+        redFwd.x = FIELD_W / 2 + 35;
+        redFwd.y = FIELD_H / 2;
+        controlledPlayer = blueFwd;
+    }
+}
+
+// Ketika Terjadi Gol
+function handleGoal(scoringTeam) {
+    if (goalPause) return;
+    goalPause = true;
+
+    if (scoringTeam === 'blue') blueScore++;
+    else redScore++;
+
+    const scorerName = ball.lastTouch ? `${ball.lastTouch.name} (#${ball.lastTouch.number})` : (scoringTeam === 'blue' ? 'Tim Garuda' : 'Tim Titans');
+    document.getElementById('goal-banner-text').innerText = scoringTeam === 'blue' ? 'GOOOAAAL!!' : 'KEBOBOLAN!';
+    document.getElementById('goal-scorer-text').innerText = `Gol dicetak oleh ${scorerName}`;
+    document.getElementById('goal-banner').classList.remove('hidden');
+
+    spawnParticles(ball.x, ball.y, '#facc15', 45, 280);
+
+    setTimeout(() => {
+        document.getElementById('goal-banner').classList.add('hidden');
+        goalPause = false;
+        resetPositions(scoringTeam === 'blue' ? 'red' : 'blue');
+    }, 2400);
+}
+
+// Mulai Pertandingan
+function startMatch() {
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('hud-top').classList.remove('hidden');
+    document.getElementById('controls-layer').classList.remove('hidden');
+
+    players = [
+        // Tim Biru (GARUDA)
+        new Footballer('Nadeo', 1, 'blue', 'gk', PADDING + 30, FIELD_H / 2),
+        new Footballer('Marselino', 7, 'blue', 'mid', FIELD_W / 2 - 240, FIELD_H / 2 - 170),
+        new Footballer('Struick', 9, 'blue', 'fwd', FIELD_W / 2 - 90, FIELD_H / 2 + 120),
+
+        // Tim Merah (TITANS)
+        new Footballer('Neuer', 1, 'red', 'gk', FIELD_W - PADDING - 30, FIELD_H / 2),
+        new Footballer('Modric', 10, 'red', 'mid', FIELD_W / 2 + 240, FIELD_H / 2 + 170),
+        new Footballer('Haaland', 9, 'red', 'fwd', FIELD_W / 2 + 120, FIELD_H / 2 - 120)
+    ];
+
+    resetPositions('blue');
+    gameRunning = true;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function endMatch() {
+    gameRunning = false;
+    document.getElementById('end-screen').classList.remove('hidden');
+    const title = document.getElementById('end-title');
+    const sub = document.getElementById('end-subtitle');
+
+    if (blueScore > redScore) {
+        title.innerText = 'JUARA! MENANG!';
+        title.className = 'font-sport text-4xl sm:text-6xl text-yellow-400 mb-2';
+        sub.innerText = 'Tim Garuda berhasil menaklukkan Tim Titans!';
+    } else if (blueScore < redScore) {
+        title.innerText = 'KALAH TIPIS';
+        title.className = 'font-sport text-4xl sm:text-6xl text-red-500 mb-2';
+        sub.innerText = 'Tetap semangat! Balas kekalahan di pertandingan berikutnya.';
+    } else {
+        title.innerText = 'HASIL IMBANG';
+        title.className = 'font-sport text-4xl sm:text-6xl text-cyan-400 mb-2';
+        sub.innerText = 'Pertandingan sengit berakhir seri!';
+    }
+
+    document.getElementById('end-blue-score').innerText = blueScore;
+    document.getElementById('end-red-score').innerText = redScore;
+}
+
+// Update Fisika Bola & Cek Gol
+function updateBall(dt) {
+    if (ball.owner) return;
+
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+    ball.rotation += Math.hypot(ball.vx, ball.vy) * 0.02 * dt;
+
+    // Gesekan rumput
+    const friction = Math.pow(0.28, dt);
+    ball.vx *= friction;
+    ball.vy *= friction;
+
+    // Cek Gol Gawang Kiri (Gol untuk Merah)
+    if (ball.x - ball.radius < PADDING && ball.y > GOAL_TOP && ball.y < GOAL_BOTTOM) {
+        handleGoal('red');
+        return;
+    }
+    // Cek Gol Gawang Kanan (Gol untuk Biru)
+    if (ball.x + ball.radius > FIELD_W - PADDING && ball.y > GOAL_TOP && ball.y < GOAL_BOTTOM) {
+        handleGoal('blue');
+        return;
+    }
+
+    // Pantulan Garis Lapangan (Atas, Bawah, Kiri, Kanan di luar gawang)
+    if (ball.y - ball.radius < PADDING) {
+        ball.y = PADDING + ball.radius;
+        ball.vy *= -0.75;
+    }
+    if (ball.y + ball.radius > FIELD_H - PADDING) {
+        ball.y = FIELD_H - PADDING - ball.radius;
+        ball.vy *= -0.75;
+    }
+    if (ball.x - ball.radius < PADDING && (ball.y <= GOAL_TOP || ball.y >= GOAL_BOTTOM)) {
+        ball.x = PADDING + ball.radius;
+        ball.vx *= -0.75;
+    }
+    if (ball.x + ball.radius > FIELD_W - PADDING && (ball.y <= GOAL_TOP || ball.y >= GOAL_BOTTOM)) {
+        ball.x = FIELD_W - PADDING - ball.radius;
+        ball.vx *= -0.75;
+    }
+}
+
+// Update HUD
+function updateHUD() {
+    document.getElementById('score-blue').innerText = blueScore;
+    document.getElementById('score-red').innerText = redScore;
+
+    const mins = String(Math.floor(Math.max(0, matchTime) / 60)).padStart(2, '0');
+    const secs = String(Math.floor(Math.max(0, matchTime) % 60)).padStart(2, '0');
+    document.getElementById('match-timer').innerText = `${mins}:${secs}`;
+
+    // Ubah label tombol sesuai penguasaan bola
+    if (controlledPlayer && ball.owner === controlledPlayer) {
+        document.getElementById('label-shoot').innerText = 'TENDANG';
+        document.getElementById('label-pass').innerText = 'UMPAN';
+    } else {
+        document.getElementById('label-shoot').innerText = 'TEKEL';
+        document.getElementById('label-pass').innerText = 'GANTI';
+    }
+
+    if (chargingShot) {
+        document.getElementById('power-bar-fill').style.width = `${shotPower * 100}%`;
+    }
+}
+
+// Gambar Lapangan & Entitas
+function drawWorld() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Kamera fokus ke tengah antara Bola & Pemain yang dikontrol
+    const focusX = controlledPlayer ? (ball.x * 0.65 + controlledPlayer.x * 0.35) : ball.x;
+    const focusY = controlledPlayer ? (ball.y * 0.65 + controlledPlayer.y * 0.35) : ball.y;
+
+    camera.x = Math.max(0, Math.min(FIELD_W - canvas.width, focusX - canvas.width / 2));
+    camera.y = Math.max(0, Math.min(FIELD_H - canvas.height, focusY - canvas.height / 2));
+
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    // Rumput Stadion Belang-Belang
+    const stripeW = 120;
+    for (let x = 0; x < FIELD_W; x += stripeW) {
+        ctx.fillStyle = (Math.floor(x / stripeW) % 2 === 0) ? '#15803d' : '#166534';
+        ctx.fillRect(x, 0, stripeW, FIELD_H);
+    }
+
+    // Garis Putih Lapangan
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(PADDING, PADDING, FIELD_W - PADDING * 2, FIELD_H - PADDING * 2);
+
+    // Garis Tengah & Lingkaran Tengah
+    ctx.beginPath();
+    ctx.moveTo(FIELD_W / 2, PADDING);
+    ctx.lineTo(FIELD_W / 2, FIELD_H - PADDING);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(FIELD_W / 2, FIELD_H / 2, 130, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Kotak Penalti Kiri & Kanan
+    ctx.strokeRect(PADDING, FIELD_H / 2 - 220, 220, 440);
+    ctx.strokeRect(FIELD_W - PADDING - 220, FIELD_H / 2 - 220, 220, 440);
+
+    // Jaring Gawang Kiri (Biru) & Kanan (Merah)
+    drawGoalNet(PADDING - GOAL_W, GOAL_TOP, GOAL_W, GOAL_H, 'rgba(59, 130, 246, 0.3)');
+    drawGoalNet(FIELD_W - PADDING, GOAL_TOP, GOAL_W, GOAL_H, 'rgba(239, 68, 68, 0.3)');
+
+    // Render Pemain
+    players.forEach(p => {
+        // Cincin Indikator Pemain Aktif
+        if (p === controlledPlayer) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius + 9, 0, Math.PI * 2);
+            ctx.strokeStyle = '#facc15';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        // Bayangan
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y + 14, p.radius * 0.9, 8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fill();
+
+        // Badan Jersey
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.team === 'blue' ? '#2563eb' : '#dc2626';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = p.role === 'gk' ? '#facc15' : '#ffffff';
+        ctx.stroke();
+
+        // Nomor Punggung
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.number, p.x, p.y);
+
+        // Nama Pemain di atas kepala
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillStyle = p === controlledPlayer ? '#fde047' : 'rgba(255,255,255,0.85)';
+        ctx.fillText(p.name, p.x, p.y - p.radius - 10);
+    });
+
+    // Render Bola Sepak
+    ctx.save();
+    ctx.translate(ball.x, ball.y);
+    ctx.rotate(ball.rotation);
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#0f172a';
+    ctx.stroke();
+
+    // Motif Segi Lima Bola
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Render Partikel
+    particles.forEach(pt => {
+        ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+        ctx.fillStyle = pt.color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    // Floating Texts
+    floatingTexts.forEach(ft => {
+        ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
+        ctx.font = 'bold 14px Inter, sans-serif';
+        ctx.fillStyle = ft.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+}
+
+function drawGoalNet(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x, y, w, h);
+}
+
+// Game Loop
+function gameLoop(timestamp) {
+    if (!gameRunning) return;
+    const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
+    lastTime = timestamp;
+
+    if (!goalPause) {
+        matchTime -= dt;
+        if (matchTime <= 0) {
+            matchTime = 0;
+            updateHUD();
+            endMatch();
+            return;
+        }
+
+        if (chargingShot) {
+            shotPower = Math.min(1, shotPower + dt * 1.45);
+        }
+
+        players.forEach(p => p.update(dt));
+        updateBall(dt);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].x += particles[i].vx * dt;
+        particles[i].y += particles[i].vy * dt;
+        particles[i].life -= dt;
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        floatingTexts[i].y -= 35 * dt;
+        floatingTexts[i].life -= dt;
+        if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    updateHUD();
+    drawWorld();
+    requestAnimationFrame(gameLoop);
+}
+
+// Kontrol Keyboard PC
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (!gameRunning) return;
+    if (e.code === 'Space' && !e.repeat) startChargeShot();
+    if (e.code === 'KeyK' || e.code === 'KeyX') handlePassOrSwitch();
+    if (e.code === 'ShiftLeft') activateSprint();
+});
+window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+    if (e.code === 'Space') releaseShot();
+});
+
+// Virtual Joystick (Touch & Mouse)
+const joyZone = document.getElementById('joystick-zone');
+const joyStick = document.getElementById('joystick-stick');
+const maxRadius = 38;
+
+function handleJoyStart(cx, cy) {
+    const rect = joyZone.getBoundingClientRect();
+    joystick.active = true;
+    joystick.originX = rect.left + rect.width / 2;
+    joystick.originY = rect.top + rect.height / 2;
+    handleJoyMove(cx, cy);
+}
+
+function handleJoyMove(cx, cy) {
+    if (!joystick.active) return;
+    let dx = cx - joystick.originX;
+    let dy = cy - joystick.originY;
+    const d = Math.hypot(dx, dy);
+    if (d > maxRadius) {
+        dx = (dx / d) * maxRadius;
+        dy = (dy / d) * maxRadius;
+    }
+    joystick.dx = dx / maxRadius;
+    joystick.dy = dy / maxRadius;
+    joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function handleJoyEnd() {
+    joystick.active = false;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joyStick.style.transform = `translate(0px, 0px)`;
+}
+
+joyZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    handleJoyStart(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
+joyZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    handleJoyMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
+joyZone.addEventListener('touchend', e => {
+    e.preventDefault();
+    handleJoyEnd();
+});
+joyZone.addEventListener('mousedown', e => handleJoyStart(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => { if (joystick.active) handleJoyMove(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => { if (joystick.active) handleJoyEnd(); });
+</script>
+</body>
+</html>
